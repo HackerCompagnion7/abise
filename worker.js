@@ -1,0 +1,555 @@
+// worker.js — Código completo para desplegar en Cloudflare Workers
+const MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions';
+
+// ─── HTML completo del chat (incrustado) ─────────────────
+const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>estrellafugaz — Chat con Mistral</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg-deep: #06060f;
+            --bg-card: #0f0f22;
+            --bg-chat: #12122a;
+            --bg-input: #1a1a35;
+            --text-primary: #e8e8f2;
+            --text-secondary: #a0a0c0;
+            --accent-gold: #f0b940;
+            --accent-purple: #7c5cfc;
+            --accent-purple-hover: #9178ff;
+            --bubble-user: #4f3cc9;
+            --bubble-ai: #1e1e3a;
+            --border-subtle: rgba(255,255,255,0.06);
+            --shadow-glow: 0 0 40px rgba(124,92,252,0.25);
+            --radius-lg: 22px;
+            --radius-md: 14px;
+            --radius-sm: 10px;
+            --font: 'Outfit', system-ui, -apple-system, sans-serif;
+            --transition: 0.25s cubic-bezier(0.4,0,0.2,1);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html, body { height:100%; overflow:hidden; font-family:var(--font); background:var(--bg-deep); color:var(--text-primary); -webkit-font-smoothing:antialiased; }
+        body::before {
+            content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+            background:
+                radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.7), transparent),
+                radial-gradient(1px 1px at 22% 8%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1.5px 1.5px at 35% 20%, rgba(255,255,255,0.65), transparent),
+                radial-gradient(1px 1px at 48% 5%, rgba(255,255,255,0.45), transparent),
+                radial-gradient(1.5px 1.5px at 55% 18%, rgba(255,255,255,0.6), transparent),
+                radial-gradient(1px 1px at 62% 12%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1px 1px at 70% 22%, rgba(255,255,255,0.55), transparent),
+                radial-gradient(1.5px 1.5px at 78% 7%, rgba(255,255,255,0.4), transparent),
+                radial-gradient(1px 1px at 85% 16%, rgba(255,255,255,0.6), transparent),
+                radial-gradient(1px 1px at 92% 10%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1.5px 1.5px at 15% 30%, rgba(255,255,255,0.35), transparent),
+                radial-gradient(1px 1px at 28% 35%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1px 1px at 42% 28%, rgba(255,255,255,0.4), transparent),
+                radial-gradient(1.5px 1.5px at 58% 33%, rgba(255,255,255,0.45), transparent),
+                radial-gradient(1px 1px at 68% 25%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1px 1px at 80% 38%, rgba(255,255,255,0.4), transparent),
+                radial-gradient(1.5px 1.5px at 88% 30%, rgba(255,255,255,0.35), transparent),
+                radial-gradient(1px 1px at 5% 45%, rgba(255,255,255,0.45), transparent),
+                radial-gradient(1px 1px at 18% 42%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1px 1px at 32% 48%, rgba(255,255,255,0.4), transparent),
+                radial-gradient(1.5px 1.5px at 50% 40%, rgba(255,255,255,0.55), transparent),
+                radial-gradient(1px 1px at 65% 46%, rgba(255,255,255,0.4), transparent),
+                radial-gradient(1px 1px at 75% 44%, rgba(255,255,255,0.5), transparent),
+                radial-gradient(1px 1px at 90% 50%, rgba(255,255,255,0.35), transparent),
+                radial-gradient(2px 2px at 20% 55%, rgba(240,185,64,0.3), transparent),
+                radial-gradient(1.5px 1.5px at 60% 58%, rgba(240,185,64,0.25), transparent),
+                radial-gradient(2px 2px at 82% 52%, rgba(240,185,64,0.2), transparent);
+            animation: twinkle 6s ease-in-out infinite alternate;
+        }
+        @keyframes twinkle { 0%{opacity:0.75;} 50%{opacity:1;} 100%{opacity:0.7;} }
+        .shooting-star {
+            position:fixed; pointer-events:none; z-index:0; width:2px; height:90px;
+            background:linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.7) 40%, rgba(240,220,160,1) 70%, rgba(240,185,64,0.9) 100%);
+            border-radius:50% 50% 50% 50% / 10% 10% 60% 60%;
+            transform:rotate(-30deg);
+            animation:shoot var(--dur) linear infinite;
+            animation-delay:var(--delay);
+            top:-120px; left:var(--start-x); opacity:0;
+        }
+        .shooting-star::after {
+            content:''; position:absolute; top:-2px; left:50%; transform:translateX(-50%);
+            width:6px; height:6px; background:#fff; border-radius:50%;
+            box-shadow:0 0 12px 4px rgba(255,220,140,0.9), 0 0 30px 10px rgba(240,185,64,0.5);
+        }
+        @keyframes shoot {
+            0%{transform:translateY(0) translateX(0) rotate(-30deg); opacity:0;}
+            5%{opacity:1;} 15%{opacity:1;}
+            30%{transform:translateY(85vh) translateX(40vw) rotate(-30deg); opacity:0;}
+            100%{transform:translateY(85vh) translateX(40vw) rotate(-30deg); opacity:0;}
+        }
+        .app-wrapper {
+            position:relative; z-index:1; display:flex; flex-direction:column; height:100vh;
+            max-width:780px; margin:0 auto; padding:12px 16px; gap:10px;
+        }
+        .app-header {
+            display:flex; align-items:center; justify-content:space-between; padding:14px 20px;
+            background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg);
+            backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); box-shadow:0 8px 32px rgba(0,0,0,0.3); flex-shrink:0;
+        }
+        .header-brand { display:flex; align-items:center; gap:10px; }
+        .header-icon { font-size:1.8rem; animation:iconPulse 3s ease-in-out infinite; filter:drop-shadow(0 0 10px rgba(240,185,64,0.5)); }
+        @keyframes iconPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.15);} }
+        .header-title {
+            font-size:1.35rem; font-weight:700; letter-spacing:-0.02em;
+            background:linear-gradient(135deg, #f5d780 0%, #f0b940 40%, #e8a420 70%, #f5d780 100%);
+            background-size:200% auto; -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+            animation:shimmer 4s linear infinite;
+        }
+        @keyframes shimmer { 0%{background-position:0% center;} 100%{background-position:200% center;} }
+        .header-actions { display:flex; align-items:center; gap:8px; }
+        .btn-icon {
+            width:40px; height:40px; border-radius:50%; border:1px solid var(--border-subtle);
+            background:rgba(255,255,255,0.04); color:var(--text-secondary); cursor:pointer;
+            display:flex; align-items:center; justify-content:center; font-size:1.1rem; transition:var(--transition); position:relative; flex-shrink:0;
+        }
+        .btn-icon:hover { background:rgba(255,255,255,0.1); color:#fff; border-color:rgba(255,255,255,0.2); box-shadow:0 0 20px rgba(124,92,252,0.3); }
+        .btn-icon:active { transform:scale(0.94); }
+        .api-indicator {
+            position:absolute; top:7px; right:7px; width:9px; height:9px; border-radius:50%; background:#555; transition:var(--transition); border:1.5px solid var(--bg-card);
+        }
+        .api-indicator.active { background:#4ade80; box-shadow:0 0 10px rgba(74,222,128,0.6); }
+        .btn-clear { font-size:0.85rem; background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding:6px 10px; border-radius:20px; transition:var(--transition); font-family:var(--font); font-weight:500; white-space:nowrap; }
+        .btn-clear:hover { color:#f87171; background:rgba(248,113,113,0.08); }
+        .chat-area {
+            flex:1; overflow-y:auto; padding:10px 6px; display:flex; flex-direction:column; gap:8px; scroll-behavior:smooth;
+            min-height:0; border-radius:var(--radius-lg); background:var(--bg-chat); border:1px solid var(--border-subtle); box-shadow:inset 0 2px 20px rgba(0,0,0,0.3);
+        }
+        .chat-area::-webkit-scrollbar { width:5px; }
+        .chat-area::-webkit-scrollbar-track { background:transparent; border-radius:10px; }
+        .chat-area::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.1); border-radius:10px; }
+        .chat-area::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.2); }
+        .msg-row { display:flex; gap:10px; max-width:88%; animation:msgIn 0.35s cubic-bezier(0.22,0.61,0.36,1); }
+        @keyframes msgIn { from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);} }
+        .msg-row.user { align-self:flex-end; flex-direction:row-reverse; }
+        .msg-row.assistant { align-self:flex-start; }
+        .msg-avatar {
+            width:34px; height:34px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:0.95rem; font-weight:700; border:2px solid rgba(255,255,255,0.1);
+        }
+        .msg-row.user .msg-avatar { background:var(--accent-purple); color:#fff; font-size:0.8rem; }
+        .msg-row.assistant .msg-avatar { background:#1a1a35; color:var(--accent-gold); font-size:1rem; }
+        .msg-bubble { padding:12px 16px; border-radius:var(--radius-md); line-height:1.55; font-size:0.95rem; font-weight:400; letter-spacing:0.01em; word-break:break-word; }
+        .msg-row.user .msg-bubble { background:var(--bubble-user); color:#f0edff; border-bottom-right-radius:4px; box-shadow:0 4px 18px rgba(79,60,201,0.35); }
+        .msg-row.assistant .msg-bubble { background:var(--bubble-ai); color:#d8d8f0; border-bottom-left-radius:4px; border:1px solid rgba(255,255,255,0.05); }
+        .msg-bubble p { margin:0; } .msg-bubble p+p { margin-top:8px; }
+        .msg-bubble pre { background:rgba(0,0,0,0.4); border-radius:8px; padding:12px; overflow-x:auto; font-size:0.82rem; margin:8px 0; border:1px solid rgba(255,255,255,0.06); }
+        .msg-bubble code { font-family:'SF Mono','Fira Code','Cascadia Code',monospace; font-size:0.84rem; }
+        .typing-indicator { display:flex; align-items:center; gap:5px; padding:8px 0; align-self:flex-start; margin-left:44px; animation:msgIn 0.3s ease; }
+        .typing-indicator span { width:8px; height:8px; border-radius:50%; background:var(--text-secondary); animation:bounce 1.2s ease-in-out infinite; }
+        .typing-indicator span:nth-child(2) { animation-delay:0.18s; }
+        .typing-indicator span:nth-child(3) { animation-delay:0.36s; }
+        @keyframes bounce { 0%,60%,100%{transform:translateY(0); opacity:0.35;} 30%{transform:translateY(-10px); opacity:1;} }
+        .welcome-msg { text-align:center; padding:30px 20px; color:var(--text-secondary); font-size:0.9rem; line-height:1.6; margin:auto; }
+        .welcome-msg .big-icon { font-size:3.5rem; display:block; margin-bottom:12px; animation:iconPulse 3s ease-in-out infinite; }
+        .welcome-msg strong { color:var(--accent-gold); font-weight:600; }
+        .input-area { display:flex; gap:10px; align-items:flex-end; padding:10px 14px; background:var(--bg-input); border-radius:var(--radius-lg); border:1px solid var(--border-subtle); flex-shrink:0; box-shadow:0 -4px 20px rgba(0,0,0,0.25); }
+        .input-area textarea { flex:1; resize:none; background:transparent; border:none; color:var(--text-primary); font-family:var(--font); font-size:0.95rem; padding:8px 4px; outline:none; line-height:1.4; max-height:120px; min-height:24px; height:24px; transition:var(--transition); }
+        .input-area textarea::placeholder { color:rgba(255,255,255,0.3); }
+        .btn-send { width:44px; height:44px; border-radius:50%; border:none; background:var(--accent-purple); color:#fff; cursor:pointer; font-size:1.1rem; flex-shrink:0; transition:var(--transition); display:flex; align-items:center; justify-content:center; box-shadow:0 4px 16px rgba(124,92,252,0.4); }
+        .btn-send:hover { background:var(--accent-purple-hover); box-shadow:0 6px 24px rgba(124,92,252,0.55); transform:translateY(-1px); }
+        .btn-send:active { transform:scale(0.93); }
+        .btn-send:disabled { background:#3a3a55; cursor:not-allowed; box-shadow:none; color:#777; transform:none; }
+        .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:100; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); opacity:0; pointer-events:none; transition:opacity 0.3s ease; }
+        .modal-overlay.open { opacity:1; pointer-events:auto; }
+        .modal-panel { background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:28px 24px; max-width:440px; width:100%; box-shadow:var(--shadow-glow), 0 20px 60px rgba(0,0,0,0.5); transform:translateY(20px); transition:transform 0.3s cubic-bezier(0.22,0.61,0.36,1); }
+        .modal-overlay.open .modal-panel { transform:translateY(0); }
+        .modal-panel h3 { font-size:1.3rem; font-weight:600; margin-bottom:6px; display:flex; align-items:center; gap:8px; color:#fff; }
+        .modal-panel h3 i { color:var(--accent-gold); }
+        .modal-panel .modal-subtitle { font-size:0.85rem; color:var(--text-secondary); margin-bottom:18px; line-height:1.5; }
+        .modal-panel label { display:block; font-size:0.82rem; font-weight:500; margin-bottom:6px; color:var(--text-secondary); letter-spacing:0.02em; text-transform:uppercase; }
+        .modal-panel .input-group { display:flex; gap:8px; margin-bottom:14px; }
+        .modal-panel input[type="password"], .modal-panel input[type="text"] { flex:1; padding:12px 14px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.12); background:var(--bg-input); color:#fff; font-family:var(--font); font-size:0.9rem; outline:none; transition:var(--transition); }
+        .modal-panel input:focus { border-color:var(--accent-purple); box-shadow:0 0 0 3px rgba(124,92,252,0.15); }
+        .modal-panel .btn-sm { padding:10px 16px; border-radius:var(--radius-sm); border:none; cursor:pointer; font-family:var(--font); font-weight:600; font-size:0.85rem; transition:var(--transition); white-space:nowrap; }
+        .btn-primary { background:var(--accent-purple); color:#fff; }
+        .btn-primary:hover { background:var(--accent-purple-hover); box-shadow:0 4px 16px rgba(124,92,252,0.4); }
+        .btn-secondary { background:rgba(255,255,255,0.05); color:var(--text-secondary); border:1px solid rgba(255,255,255,0.1); }
+        .btn-secondary:hover { background:rgba(255,255,255,0.1); color:#fff; }
+        .btn-danger { background:transparent; color:#f87171; border:1px solid rgba(248,113,113,0.3); }
+        .btn-danger:hover { background:rgba(248,113,113,0.1); border-color:rgba(248,113,113,0.5); }
+        .modal-actions { display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; }
+        .status-badge { display:inline-flex; align-items:center; gap:5px; font-size:0.78rem; padding:5px 10px; border-radius:20px; font-weight:500; }
+        .status-badge.ok { background:rgba(74,222,128,0.12); color:#4ade80; }
+        .status-badge.nok { background:rgba(248,113,113,0.1); color:#f87171; }
+        .status-badge.info { background:rgba(148,163,184,0.1); color:#94a3b8; }
+        @media (max-width:600px) {
+            .app-wrapper { padding:6px 8px; gap:6px; }
+            .app-header { padding:10px 14px; border-radius:var(--radius-md); }
+            .header-title { font-size:1.1rem; } .header-icon { font-size:1.4rem; }
+            .chat-area { padding:8px 4px; border-radius:var(--radius-md); }
+            .msg-row { max-width:95%; } .msg-bubble { padding:10px 13px; font-size:0.9rem; }
+            .input-area { padding:8px 10px; border-radius:var(--radius-md); gap:6px; }
+            .btn-send { width:38px; height:38px; font-size:1rem; }
+            .modal-panel { padding:20px 16px; border-radius:var(--radius-md); }
+            .btn-icon { width:35px; height:35px; font-size:1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="shooting-star" style="--dur:8s; --delay:0s; --start-x:15%;"></div>
+    <div class="shooting-star" style="--dur:11s; --delay:3s; --start-x:35%;"></div>
+    <div class="shooting-star" style="--dur:9s; --delay:5.5s; --start-x:58%;"></div>
+    <div class="shooting-star" style="--dur:10s; --delay:1.5s; --start-x:72%;"></div>
+    <div class="shooting-star" style="--dur:7.5s; --delay:7s; --start-x:88%;"></div>
+
+    <div class="app-wrapper">
+        <header class="app-header">
+            <div class="header-brand">
+                <span class="header-icon">🌠</span>
+                <span class="header-title">estrellafugaz</span>
+            </div>
+            <div class="header-actions">
+                <button class="btn-clear" id="btnClearChat" title="Limpiar conversación"><i class="fa-solid fa-broom"></i>&nbsp;Limpiar</button>
+                <button class="btn-icon" id="btnSettings" title="Configuración">
+                    <i class="fa-solid fa-gear"></i>
+                    <span class="api-indicator" id="apiIndicator"></span>
+                </button>
+            </div>
+        </header>
+        <div class="chat-area" id="chatArea">
+            <div class="welcome-msg" id="welcomeMsg">
+                <span class="big-icon">🌠</span>
+                <p><strong>estrellafugaz</strong> está lista para conversar</p>
+                <p style="font-size:0.8rem; margin-top:4px;">Configura tu <strong>API key de Mistral</strong> en el engranaje <i class="fa-solid fa-gear"></i> para comenzar</p>
+            </div>
+        </div>
+        <div class="input-area">
+            <textarea id="userInput" rows="1" placeholder="Escribe tu mensaje..." disabled></textarea>
+            <button class="btn-send" id="btnSend" disabled title="Enviar"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-panel">
+            <h3><i class="fa-solid fa-key"></i> Configuración</h3>
+            <p class="modal-subtitle">Ingresa tu <strong>API key de Mistral</strong> para activar el chat. Se guarda solo en este navegador.</p>
+            <label>API Key</label>
+            <div class="input-group"><input type="password" id="apiKeyInput" placeholder="Ej: xxxxxxxxxxxxxxxxxxxxxxxx"></div>
+            <div style="margin-bottom:12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span id="statusBadge" class="status-badge info"><i class="fa-solid fa-circle-info"></i> Sin configurar</span>
+                <button class="btn-sm btn-secondary" id="btnToggleVisibility" title="Mostrar/ocultar clave"><i class="fa-solid fa-eye"></i></button>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-sm btn-primary" id="btnSaveKey"><i class="fa-solid fa-floppy-disk"></i> Guardar y usar</button>
+                <button class="btn-sm btn-danger" id="btnRemoveKey"><i class="fa-solid fa-trash-can"></i> Eliminar clave</button>
+                <button class="btn-sm btn-secondary" id="btnCloseModal"><i class="fa-solid fa-xmark"></i> Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const chatArea = document.getElementById('chatArea');
+            const welcomeMsg = document.getElementById('welcomeMsg');
+            const userInput = document.getElementById('userInput');
+            const btnSend = document.getElementById('btnSend');
+            const btnSettings = document.getElementById('btnSettings');
+            const btnClearChat = document.getElementById('btnClearChat');
+            const modalOverlay = document.getElementById('modalOverlay');
+            const apiKeyInput = document.getElementById('apiKeyInput');
+            const btnSaveKey = document.getElementById('btnSaveKey');
+            const btnRemoveKey = document.getElementById('btnRemoveKey');
+            const btnCloseModal = document.getElementById('btnCloseModal');
+            const btnToggleVisibility = document.getElementById('btnToggleVisibility');
+            const statusBadge = document.getElementById('statusBadge');
+            const apiIndicator = document.getElementById('apiIndicator');
+
+            const STORAGE_KEY = 'estrellafugaz_mistral_key';
+            // ⚡ Ahora el proxy es el mismo Worker (mismo origen)
+            const WORKER_URL = window.location.origin;
+            const MODEL_NAME = 'mistral-small-latest';
+            const SYSTEM_PROMPT = 'Eres "Estrella Fugaz" (🌠), un asistente cálido, amigable y servicial. ' +
+                'Respondes principalmente en español, de forma clara y concisa. ' +
+                'Si el usuario escribe en otro idioma, responde en ese mismo idioma. ' +
+                'Mantén un tono cercano, humano y positivo. Puedes usar emojis ocasionalmente. ' +
+                'Ayudas con todo tipo de preguntas: creatividad, programación, consejos, cultura general, etc.';
+            let apiKey = null;
+            let conversationHistory = [];
+            let isLoading = false;
+
+            function init() {
+                loadApiKey();
+                updateUIState();
+                bindEvents();
+                if (apiKey) showWelcomeWithKey();
+            }
+            function loadApiKey() {
+                try {
+                    const stored = localStorage.getItem(STORAGE_KEY);
+                    if (stored && stored.trim().length > 5) {
+                        apiKey = stored.trim();
+                        apiKeyInput.value = apiKey;
+                    }
+                } catch (e) { console.warn('No se pudo acceder a localStorage'); }
+            }
+            function saveApiKey(key) {
+                try { localStorage.setItem(STORAGE_KEY, key.trim()); apiKey = key.trim(); apiKeyInput.value = apiKey; return true; }
+                catch (e) { return false; }
+            }
+            function removeApiKey() {
+                try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+                apiKey = null; apiKeyInput.value = ''; conversationHistory = [];
+                updateUIState(); resetChat();
+            }
+            function updateUIState() {
+                const hasKey = !!apiKey;
+                userInput.disabled = !hasKey || isLoading;
+                btnSend.disabled = !hasKey || isLoading || !userInput.value.trim();
+                if (hasKey) {
+                    userInput.placeholder = 'Escribe tu mensaje...';
+                    apiIndicator.classList.add('active');
+                    statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> Configurada';
+                    statusBadge.className = 'status-badge ok';
+                } else {
+                    userInput.placeholder = 'Configura tu API key primero ⚙️';
+                    apiIndicator.classList.remove('active');
+                    statusBadge.innerHTML = '<i class="fa-solid fa-circle-info"></i> Sin configurar';
+                    statusBadge.className = 'status-badge info';
+                }
+            }
+            function showWelcomeWithKey() {
+                if (welcomeMsg && conversationHistory.length === 0) {
+                    welcomeMsg.innerHTML = \`<span class="big-icon">🌠</span><p><strong>estrellafugaz</strong> está lista ✨</p><p style="font-size:0.8rem; margin-top:4px;">Escribe tu primer mensaje para comenzar</p>\`;
+                    welcomeMsg.style.display = '';
+                }
+            }
+            function resetChat() {
+                conversationHistory = [];
+                chatArea.querySelectorAll('.msg-row, .typing-indicator').forEach(el => el.remove());
+                if (welcomeMsg) {
+                    welcomeMsg.innerHTML = \`<span class="big-icon">🌠</span><p><strong>estrellafugaz</strong> está lista para conversar</p><p style="font-size:0.8rem; margin-top:4px;">Configura tu <strong>API key de Mistral</strong> en el engranaje <i class="fa-solid fa-gear"></i> para comenzar</p>\`;
+                    welcomeMsg.style.display = '';
+                }
+            }
+            function bindEvents() {
+                btnSettings.addEventListener('click', openModal);
+                btnCloseModal.addEventListener('click', closeModal);
+                btnSaveKey.addEventListener('click', handleSaveKey);
+                btnRemoveKey.addEventListener('click', handleRemoveKey);
+                btnToggleVisibility.addEventListener('click', toggleApiKeyVisibility);
+                btnClearChat.addEventListener('click', handleClearChat);
+                modalOverlay.addEventListener('click', function(e) { if (e.target === modalOverlay) closeModal(); });
+                btnSend.addEventListener('click', handleSend);
+                userInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                });
+                userInput.addEventListener('input', function() { updateUIState(); autoResizeTextarea(); });
+                document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+            }
+            function autoResizeTextarea() {
+                userInput.style.height = '24px';
+                const scrollH = userInput.scrollHeight;
+                const maxH = 120;
+                userInput.style.height = Math.min(scrollH, maxH) + 'px';
+            }
+            function openModal() {
+                if (apiKey) apiKeyInput.value = apiKey;
+                updateStatusBadge();
+                modalOverlay.classList.add('open');
+                setTimeout(() => apiKeyInput.focus(), 150);
+            }
+            function closeModal() { modalOverlay.classList.remove('open'); updateUIState(); }
+            function toggleApiKeyVisibility() {
+                if (apiKeyInput.type === 'password') { apiKeyInput.type = 'text'; btnToggleVisibility.innerHTML = '<i class="fa-solid fa-eye-slash"></i>'; }
+                else { apiKeyInput.type = 'password'; btnToggleVisibility.innerHTML = '<i class="fa-solid fa-eye"></i>'; }
+            }
+            function updateStatusBadge() {
+                if (apiKey && apiKey.trim().length > 5) {
+                    statusBadge.innerHTML = '<i class="fa-solid fa-circle-check"></i> Configurada';
+                    statusBadge.className = 'status-badge ok';
+                } else {
+                    statusBadge.innerHTML = '<i class="fa-solid fa-circle-info"></i> Sin configurar';
+                    statusBadge.className = 'status-badge info';
+                }
+            }
+            function handleSaveKey() {
+                const rawKey = apiKeyInput.value.trim();
+                if (!rawKey || rawKey.length < 5) {
+                    statusBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Clave inválida';
+                    statusBadge.className = 'status-badge nok';
+                    apiKeyInput.focus();
+                    return;
+                }
+                if (saveApiKey(rawKey)) { updateStatusBadge(); updateUIState(); showWelcomeWithKey(); closeModal(); }
+            }
+            function handleRemoveKey() {
+                if (confirm('¿Eliminar la API key guardada? El chat se reiniciará.')) { removeApiKey(); updateStatusBadge(); closeModal(); }
+            }
+            function handleClearChat() {
+                if (conversationHistory.length === 0 && chatArea.querySelectorAll('.msg-row').length === 0) return;
+                if (confirm('¿Limpiar toda la conversación actual?')) {
+                    conversationHistory = [];
+                    chatArea.querySelectorAll('.msg-row, .typing-indicator').forEach(el => el.remove());
+                    if (welcomeMsg) { welcomeMsg.style.display = ''; showWelcomeWithKey(); }
+                }
+            }
+            function handleSend() {
+                const text = userInput.value.trim();
+                if (!text || !apiKey || isLoading) return;
+                if (welcomeMsg) welcomeMsg.style.display = 'none';
+                addMessage('user', text);
+                conversationHistory.push({ role: 'user', content: text });
+                userInput.value = '';
+                userInput.style.height = '24px';
+                updateUIState();
+                userInput.focus();
+                callMistralAPI();
+            }
+            function addMessage(role, content) {
+                const row = document.createElement('div');
+                row.classList.add('msg-row', role);
+                const avatar = document.createElement('div');
+                avatar.classList.add('msg-avatar');
+                avatar.innerHTML = role === 'user' ? '<i class="fa-solid fa-user"></i>' : '🌠';
+                const bubble = document.createElement('div');
+                bubble.classList.add('msg-bubble');
+                bubble.innerHTML = formatContent(content);
+                if (role === 'user') { row.appendChild(bubble); row.appendChild(avatar); }
+                else { row.appendChild(avatar); row.appendChild(bubble); }
+                chatArea.appendChild(row);
+                scrollToBottom();
+            }
+            function formatContent(content) {
+                let escaped = escapeHtml(content);
+                escaped = escaped.replace(/\`\`\`(\w*)\\n?([\\s\\S]*?)\`\`\`/g, function(_, lang, code) {
+                    return '<pre><code>' + escapeHtml(code.trim()) + '</code></pre>';
+                });
+                escaped = escaped.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
+                escaped = escaped.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+                escaped = escaped.replace(/\\*(.+?)\\*/g, '<em>$1</em>');
+                escaped = escaped.replace(/\\n/g, '<br>');
+                return escaped;
+            }
+            function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+            function showTypingIndicator() {
+                const indicator = document.createElement('div');
+                indicator.classList.add('typing-indicator');
+                indicator.id = 'typingIndicator';
+                indicator.innerHTML = '<span></span><span></span><span></span>';
+                chatArea.appendChild(indicator);
+                scrollToBottom();
+            }
+            function removeTypingIndicator() { const i = document.getElementById('typingIndicator'); if (i) i.remove(); }
+            function scrollToBottom() { requestAnimationFrame(() => { chatArea.scrollTop = chatArea.scrollHeight; }); }
+
+            async function callMistralAPI() {
+                isLoading = true; updateUIState(); showTypingIndicator();
+                const messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...conversationHistory.slice(-18)];
+                let responseText = ''; let errorOccurred = false;
+                try {
+                    const response = await fetch(WORKER_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey },
+                        body: JSON.stringify({ model: MODEL_NAME, messages: messages, temperature: 0.7, max_tokens: 2048 }),
+                    });
+                    if (!response.ok) {
+                        const errData = await response.json().catch(() => ({}));
+                        const errMsg = errData.message || errData.detail || response.statusText;
+                        if (response.status === 401) throw new Error('🔐 API key inválida. Verifica tu clave en la configuración.');
+                        if (response.status === 429) throw new Error('⏳ Has alcanzado el límite de solicitudes. Espera un momento.');
+                        if (response.status === 403) throw new Error('🚫 Acceso denegado. Tu API key puede no tener permisos.');
+                        throw new Error('⚠️ Error del servidor: ' + errMsg);
+                    }
+                    const data = await response.json();
+                    if (data.choices && data.choices.length > 0 && data.choices[0].message) {
+                        responseText = data.choices[0].message.content || '';
+                    } else { throw new Error('⚠️ Respuesta inesperada de la API.'); }
+                } catch (error) {
+                    responseText = error.message || '❌ Error desconocido.';
+                    errorOccurred = true;
+                }
+                removeTypingIndicator();
+                if (responseText) {
+                    if (errorOccurred) {
+                        const row = document.createElement('div');
+                        row.classList.add('msg-row', 'assistant');
+                        const avatar = document.createElement('div');
+                        avatar.classList.add('msg-avatar'); avatar.innerHTML = '⚠️';
+                        const bubble = document.createElement('div');
+                        bubble.classList.add('msg-bubble');
+                        bubble.style.border = '1px solid rgba(248,113,113,0.4)';
+                        bubble.style.background = 'rgba(248,113,113,0.08)';
+                        bubble.textContent = responseText;
+                        row.appendChild(avatar); row.appendChild(bubble);
+                        chatArea.appendChild(row);
+                    } else {
+                        addMessage('assistant', responseText);
+                        conversationHistory.push({ role: 'assistant', content: responseText });
+                    }
+                }
+                scrollToBottom(); isLoading = false; updateUIState(); userInput.focus();
+            }
+            init();
+        })();
+    </script>
+</body>
+</html>`;
+
+// ─── Worker handler ─────────────────────────
+async function handleRequest(request) {
+  const url = new URL(request.url);
+
+  // CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Api-Key',
+        'Access-Control-Max-Age': '86400',
+      },
+    });
+  }
+
+  // Servir el HTML en GET /
+  if (request.method === 'GET' && url.pathname === '/') {
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html; charset=UTF-8', 'Access-Control-Allow-Origin': '*' },
+    });
+  }
+
+  // Proxy a Mistral en POST /
+  if (request.method === 'POST' && url.pathname === '/') {
+    const clientApiKey = request.headers.get('X-Api-Key');
+    if (!clientApiKey) {
+      return new Response('Missing X-Api-Key header', {
+        status: 400,
+        headers: { 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+
+    const body = await request.text();
+    const mistralResponse = await fetch(MISTRAL_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': \`Bearer \${clientApiKey}\`,
+      },
+      body: body,
+    });
+
+    const responseHeaders = new Headers(mistralResponse.headers);
+    responseHeaders.set('Access-Control-Allow-Origin', '*');
+    return new Response(mistralResponse.body, {
+      status: mistralResponse.status,
+      statusText: mistralResponse.statusText,
+      headers: responseHeaders,
+    });
+  }
+
+  return new Response('Not Found', { status: 404 });
+}
+
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request));
+});
