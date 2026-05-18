@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mistral Chat - VERTIL AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            background: linear-gradient(135deg, #0a0e1a 0%, #0f1422 100%);
+            min-height: 100vh;
+            color: #00ffcc;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 2px solid #00ffcc;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            letter-spacing: 2px;
+        }
+
+        .header p {
+            color: #8892b0;
+            font-size: 0.8rem;
+            margin-top: 8px;
+        }
+
+        .api-config {
+            background: #0f1422;
+            border: 1px solid #00ffcc33;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .api-config label {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #8892b0;
+            margin-bottom: 8px;
+        }
+
+        .api-key-input {
+            width: 100%;
+            background: #0a0e1a;
+            border: 1px solid #00ffcc33;
+            border-radius: 8px;
+            padding: 10px 15px;
+            color: #00ffcc;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+
+        .api-key-input:focus {
+            outline: none;
+            border-color: #00ffcc;
+        }
+
+        .model-select {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .model-btn {
+            background: transparent;
+            border: 1px solid #00ffcc33;
+            padding: 6px 12px;
+            border-radius: 20px;
+            color: #8892b0;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: all 0.2s;
+        }
+
+        .model-btn.active {
+            background: #00ffcc;
+            color: #0a0e1a;
+            border-color: #00ffcc;
+        }
+
+        .chat-box {
+            flex: 1;
+            background: #0f1422;
+            border: 1px solid #00ffcc33;
+            border-radius: 12px;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message.user {
+            align-items: flex-end;
+        }
+
+        .message.bot {
+            align-items: flex-start;
+        }
+
+        .message-content {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .user .message-content {
+            background: #00ffcc20;
+            border: 1px solid #00ffcc;
+            color: #00ffcc;
+        }
+
+        .bot .message-content {
+            background: #1a2040;
+            border: 1px solid #00ffcc33;
+            color: #e2e8f0;
+        }
+
+        .message-time {
+            font-size: 0.6rem;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            background: #0a0e1a;
+            border: 1px solid #00ffcc33;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #00ffcc;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+
+        .input-area input:focus {
+            outline: none;
+            border-color: #00ffcc;
+        }
+
+        .input-area button {
+            background: #00ffcc;
+            border: none;
+            border-radius: 8px;
+            padding: 0 24px;
+            color: #0a0e1a;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .input-area button:hover {
+            background: #00cc88;
+            transform: scale(0.98);
+        }
+
+        .status {
+            text-align: center;
+            font-size: 0.7rem;
+            color: #8892b0;
+            margin-top: 10px;
+        }
+
+        .status.online {
+            color: #00ffcc;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0f1422;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #00ffcc33;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 MISTRAL AI · VERTIL CHAT</h1>
+            <p>Modelo Large · Inteligencia real · Sin censura local</p>
+        </div>
+
+        <div class="api-config">
+            <label>🔑 API KEY DE MISTRAL</label>
+            <input type="password" id="apiKey" class="api-key-input" placeholder="Pega tu API Key aquí">
+            <div class="model-select">
+                <button class="model-btn" data-model="mistral-large-latest">🔥 Large (más potente)</button>
+                <button class="model-btn" data-model="codestral-latest">💻 Codestral (código)</button>
+                <button class="model-btn" data-model="mistral-small-latest">⚡ Small (rápido)</button>
+            </div>
+        </div>
+
+        <div class="chat-box" id="chatBox">
+            <div class="message bot">
+                <div class="message-content">
+                    🤖 VERTIL conectado a Mistral AI.<br>
+                    Ingresa tu API Key y comienza a chatear.
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Escribe tu mensaje..." disabled>
+            <button id="sendBtn" disabled>ENVIAR</button>
+        </div>
+        <div class="status" id="status">🔴 Sin conexión · Ingresa API Key</div>
+    </div>
+
+    <script>
+        let currentModel = 'mistral-large-latest';
+        let apiKey = '';
+        let isConnected = false;
+
+        // Model selection
+        document.querySelectorAll('.model-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentModel = btn.dataset.model;
+                addSystemMessage(`📡 Modelo cambiado a: ${currentModel}`);
+            });
+        });
+
+        // API Key input
+        const apiKeyInput = document.getElementById('apiKey');
+        apiKeyInput.addEventListener('input', (e) => {
+            apiKey = e.target.value.trim();
+            if (apiKey.length > 10) {
+                isConnected = true;
+                document.getElementById('userInput').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                document.getElementById('status').innerHTML = '🟢 Conectado a Mistral · Listo para chatear';
+                document.getElementById('status').className = 'status online';
+                addSystemMessage('✅ API Key configurada. ¡Ya puedes chatear!');
+            } else {
+                isConnected = false;
+                document.getElementById('userInput').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                document.getElementById('status').innerHTML = '🔴 Sin conexión · Ingresa API Key';
+                document.getElementById('status').className = 'status';
+            }
+        });
+
+        function addSystemMessage(text) {
+            const chatBox = document.getElementById('chatBox');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            messageDiv.innerHTML = `
+                <div class="message-content" style="background: #00ffcc10; border-color: #00ffcc; color: #00ffcc;">
+                    🔧 ${text}
+                </div>
+            `;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function addMessage(text, isUser) {
+            const chatBox = document.getElementById('chatBox');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
+            const time = new Date().toLocaleTimeString();
+            messageDiv.innerHTML = `
+                <div class="message-content">${text}</div>
+                <div class="message-time">${time}</div>
+            `;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            if (!message) return;
+            if (!apiKey) {
+                addSystemMessage('❌ Primero ingresa tu API Key');
+                return;
+            }
+
+            addMessage(message, true);
+            input.value = '';
+            input.disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            // Mostrar indicador de escritura
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot';
+            typingDiv.id = 'typing';
+            typingDiv.innerHTML = `<div class="message-content" style="opacity:0.6;">🤔 Mistral está pensando...</div>`;
+            document.getElementById('chatBox').appendChild(typingDiv);
+            document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
+
+            try {
+                const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: currentModel,
+                        messages: [
+                            {
+                                role: 'system',
+                                content: 'Eres VERTIL, un asistente de inteligencia artificial creado para ayudar. Responde en español de forma clara, directa y útil. Si te preguntan sobre temas de seguridad, ciberseguridad o Haití, responde con información precisa y relevante.'
+                            },
+                            {
+                                role: 'user',
+                                content: message
+                            }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 1000
+                    })
+                });
+
+                document.getElementById('typing')?.remove();
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || `Error ${response.status}`);
+                }
+
+                const data = await response.json();
+                const reply = data.choices[0].message.content;
+                addMessage(reply, false);
+
+            } catch (error) {
+                document.getElementById('typing')?.remove();
+                addMessage(`❌ Error: ${error.message}`, false);
+                if (error.message.includes('401')) {
+                    addSystemMessage('⚠️ API Key inválida o expirada. Verifica tu clave.');
+                    isConnected = false;
+                    document.getElementById('userInput').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                }
+            } finally {
+                input.disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                input.focus();
+            }
+        }
+
+        document.getElementById('sendBtn').addEventListener('click', sendMessage);
+        document.getElementById('userInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>
